@@ -1,6 +1,7 @@
 # fromm-jaimepas
 
 simple fromm VOD proxy server
+You can only access only what you paid for
 
 ## Requirements
 
