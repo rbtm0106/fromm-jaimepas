@@ -31,6 +31,8 @@ python app.py
 * Windows 11
 * Python 3.13
 * firefox 145.0.1
+* 
+[![video](https://img.youtube.com/vi/MBZhY7ParcU/maxresdefault.jpg)](https://www.youtube.com/watch?v=MBZhY7ParcU)
 
 ---
 
