@@ -1,0 +1,442 @@
+{% extends "layout.html" %}
+
+{% block title %}Video Player{% endblock %}
+
+{% block styles %}
+<style>
+    /* Custom range slider styling */
+    input[type=range] { -webkit-appearance: none; background: transparent; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; }
+    input[type=range]:focus { outline: none; }
+
+    /* Hide scrollbar for quality menu */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Smooth fading for controls */
+    .player-wrapper:hover .controls-overlay { opacity: 1; }
+    .controls-overlay { transition: opacity 0.3s ease; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); }
+    #video { transition: transform 0.3s ease-in-out; }
+
+    .player-wrapper:fullscreen { aspect-ratio: auto; }
+    .player-wrapper:fullscreen #video { object-fit: contain; }
+
+    /* Overlays */
+    .click-overlay { position: absolute; top: 0; bottom: 0; width: 30%; z-index: 15; }
+    #skip-overlay-left { left: 0; }
+    #skip-overlay-right { right: 0; }
+    #middle-click-overlay { left: 30%; width: 40%; }
+
+    /* Feedback icons */
+    .skip-feedback { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+    .show-skip-feedback .skip-feedback { animation: fadeOut 0.5s ease; }
+    @keyframes fadeOut {
+        0% { opacity: 0.8; transform: translate(-50%, -50%) scale(0.9); }
+        50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="text-2xl font-bold text-blue-400">Post ID: {{ post_id | default('N/A') }}</h1>
+</div>
+
+<div class="player-wrapper relative group bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 aspect-video" id="video-container">
+    <video id="video" class="w-full h-full object-contain"></video>
+
+    <div id="skip-overlay-left" class="click-overlay"><div class="skip-feedback"><i data-lucide="rewind" class="w-12 h-12"></i></div></div>
+    <div id="middle-click-overlay" class="click-overlay cursor-pointer"></div>
+    <div id="skip-overlay-right" class="click-overlay"><div class="skip-feedback"><i data-lucide="fast-forward" class="w-12 h-12"></i></div></div>
+
+    <div id="loader" class="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10 pointer-events-none">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <p id="loader-message" class="mt-4 text-gray-300">Loading video...</p>
+    </div>
+
+    <div id="error-display" class="hidden absolute inset-0 flex-col items-center justify-center bg-black/90 z-20 text-center p-6">
+        <i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mb-2"></i>
+        <h3 class="text-lg font-bold text-white">Playback Error</h3>
+        <p id="error-message" class="text-gray-400 text-sm mt-1">Unable to load stream.</p>
+        <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">Retry</button>
+    </div>
+
+    <div class="controls-overlay absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 flex flex-col gap-2 z-20">
+        <div class="relative w-full h-2 group/progress cursor-pointer flex items-center" id="progress-container">
+            <div class="absolute w-full h-1 bg-gray-600 rounded-full"></div>
+            <div id="buffered-bar" class="absolute h-1 bg-gray-400 rounded-full transition-all duration-200" style="width: 0%"></div>
+            <div id="progress-bar" class="absolute h-1 bg-blue-500 rounded-full transition-all duration-75" style="width: 0%"></div>
+            <div class="absolute h-3 w-3 bg-white rounded-full shadow opacity-0 group-hover/progress:opacity-100 transition-opacity" id="progress-thumb" style="left: 0%"></div>
+        </div>
+
+        <div class="flex items-center justify-between mt-1">
+            <div class="flex items-center gap-4">
+                <button id="play-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="play" class="w-6 h-6 fill-current"></i></button>
+                <div class="group/vol flex items-center gap-2">
+                    <button id="mute-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="volume-2" class="w-6 h-6"></i></button>
+                    <div class="w-0 overflow-hidden group-hover/vol:w-24 transition-all duration-300">
+                        <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1" class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+                <div class="text-xs text-gray-300 font-mono"><span id="current-time">00:00</span> / <span id="duration">00:00</span></div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button id="rotate-ccw-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="rotate-ccw" class="w-5 h-5"></i></button>
+                <button id="rotate-cw-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="rotate-cw" class="w-5 h-5"></i></button>
+                <div class="relative">
+                    <button id="quality-btn" class="flex items-center gap-1 text-sm font-medium hover:text-blue-400 transition-colors px-2 py-1 rounded bg-black/40 border border-transparent hover:border-gray-700">
+                        <i data-lucide="settings" class="w-4 h-4"></i><span id="current-quality-label">Auto</span>
+                    </button>
+                    <div id="quality-menu" class="hidden absolute bottom-full right-0 mb-2 w-32 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-30">
+                        <div class="py-1" id="quality-options"></div>
+                    </div>
+                </div>
+                <button id="fullscreen-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="maximize" class="w-5 h-5"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-6 flex justify-between items-start gap-4">
+    <div id="status-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 self-center">Initializing...</div>
+    <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 flex-grow">
+        <h3 class="font-bold text-gray-300 text-sm mb-2">Debug Info</h3>
+        <div class="grid grid-cols-2 gap-4 text-xs font-mono text-gray-400">
+            <div>Status: <span id="debug-status" class="text-white">-</span></div>
+            <div>Current Level: <span id="debug-level" class="text-white">-</span></div>
+            <div>Buffer Length: <span id="debug-buffer" class="text-white">-</span></div>
+            <div>Codecs: <span id="debug-codecs" class="text-white">-</span></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+
+<script>
+    // --- DOM Elements ---
+    const video = document.getElementById('video');
+    const loader = document.getElementById('loader');
+    const loaderMessage = document.getElementById('loader-message');
+    const errorDisplay = document.getElementById('error-display');
+    const errorMessage = document.getElementById('error-message');
+    const playBtn = document.getElementById('play-btn');
+    const muteBtn = document.getElementById('mute-btn');
+    const volumeSlider = document.getElementById('volume-slider');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const bufferedBar = document.getElementById('buffered-bar');
+    const progressThumb = document.getElementById('progress-thumb');
+    const currentTimeEl = document.getElementById('current-time');
+    const durationEl = document.getElementById('duration');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    const qualityBtn = document.getElementById('quality-btn');
+    const qualityMenu = document.getElementById('quality-menu');
+    const qualityOptions = document.getElementById('quality-options');
+    const currentQualityLabel = document.getElementById('current-quality-label');
+    const rotateCWBtn = document.getElementById('rotate-cw-btn');
+    const rotateCCWBtn = document.getElementById('rotate-ccw-btn');
+    const statusBadge = document.getElementById('status-badge');
+    const debugStatus = document.getElementById('debug-status');
+    const debugLevel = document.getElementById('debug-level');
+    const debugBuffer = document.getElementById('debug-buffer');
+    const debugCodecs = document.getElementById('debug-codecs');
+    const leftSkipOverlay = document.getElementById('skip-overlay-left');
+    const rightSkipOverlay = document.getElementById('skip-overlay-right');
+    const middleClickOverlay = document.getElementById('middle-click-overlay');
+
+    let hls = null;
+    let currentRotation = 0;
+    let isDragging = false;
+
+    const POST_ID = '{{ post_id }}';
+    const CHANNEL_ID = '{{ channel_id }}';
+
+    // --- Main Initialization (FIXED) ---
+    async function main() {
+        lucide.createIcons();
+
+        try {
+            updateStatus('Fetching video info...');
+            loaderMessage.textContent = 'Fetching video info...';
+
+            // --- FIX 1: Use fetchWithTabId (from layout.html) ---
+            // This adds the 'X-Tab-ID' header so the backend knows which tab is asking
+            const postResponse = await fetchWithTabId(`/api/post/${CHANNEL_ID}/${POST_ID}`);
+
+            if (!postResponse.ok) {
+                const errorData = await postResponse.json();
+                throw new Error(`Failed to fetch post info: ${errorData.error || postResponse.statusText}`);
+            }
+
+            const postData = await postResponse.json();
+            const streamUrl = postData?.data?.post?.url;
+
+            if (!streamUrl) {
+                throw new Error("Stream URL not found in API response.");
+            }
+
+            // --- FIX 2: Append Tab ID to URL ---
+            const urlObject = new URL(streamUrl);
+            const tabId = sessionStorage.getItem('my_app_tab_id'); // Get ID manually
+
+            // Add '?tid=...' to the proxied URL
+            const proxiedUrl = `/stream/p${POST_ID}${urlObject.pathname}?tid=${tabId}`;
+
+            updateStatus('Initializing player...');
+            loaderMessage.textContent = 'Loading video...';
+
+            initPlayer(proxiedUrl);
+
+        } catch (error) {
+            console.error("Initialization failed:", error);
+            showError(error.message);
+        }
+    }
+
+    // --- HLS Player Initialization ---
+    function initPlayer(streamUrl) {
+        if (Hls.isSupported()) {
+            hls = new Hls({
+                debug: false,
+                maxBufferLength: 60,
+                maxMaxBufferLength: 120,
+                maxLoadingRequests: 5,
+                fragLoadingMaxRetry: 10,
+                levelLoadingMaxRetry: 5
+            });
+
+            // Send X-Tab-ID header even for HLS fragments (Optional, but good practice)
+            // Note: This only works for XHR requests HLS makes, not the initial file sometimes.
+            // The ?tid=... in the URL handles the main auth.
+            const tabId = sessionStorage.getItem('my_app_tab_id');
+            if(tabId) {
+                hls.config.xhrSetup = function(xhr, url) {
+                    xhr.setRequestHeader('X-Tab-ID', tabId);
+                };
+            }
+
+            hls.loadSource(streamUrl);
+            hls.attachMedia(video);
+
+            hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                updateStatus('Ready to Play');
+                loader.style.display = 'none';
+                debugCodecs.textContent = data.levels[0]?.attrs?.CODECS || 'Unknown';
+                generateQualityControls(data.levels);
+                video.addEventListener('progress', updateBuffer);
+                // Auto-play attempt
+                video.play().catch(() => {
+                    updateStatus('Click to Play');
+                });
+            });
+
+            hls.on(Hls.Events.ERROR, (event, data) => {
+                if (data.fatal) {
+                    showError(`HLS Error: ${data.details}`);
+                    hls.destroy();
+                }
+            });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = streamUrl;
+            video.addEventListener('loadedmetadata', () => {
+                loader.style.display = 'none';
+                updateStatus('Ready (Native)');
+                currentQualityLabel.textContent = 'Native';
+                qualityBtn.disabled = true;
+            });
+        } else {
+            showError("HLS is not supported in this browser.");
+        }
+
+        video.addEventListener('seeking', () => loader.style.display = 'flex');
+        video.addEventListener('seeked', () => loader.style.display = 'none');
+        video.addEventListener('waiting', () => loader.style.display = 'flex');
+        video.addEventListener('canplay', () => loader.style.display = 'none');
+        video.addEventListener('playing', () => loader.style.display = 'none');
+    }
+
+    // --- Interaction Logic ---
+    playBtn.addEventListener('click', () => video.paused ? video.play() : video.pause());
+    middleClickOverlay.addEventListener('click', () => video.paused ? video.play() : video.pause());
+    leftSkipOverlay.addEventListener('dblclick', () => skip(-10));
+    rightSkipOverlay.addEventListener('dblclick', () => skip(10));
+
+    video.addEventListener('play', () => {
+        playBtn.innerHTML = '<i data-lucide="pause" class="w-6 h-6 fill-current"></i>';
+        lucide.createIcons();
+        updateStatus('Playing');
+    });
+    video.addEventListener('pause', () => {
+        playBtn.innerHTML = '<i data-lucide="play" class="w-6 h-6 fill-current"></i>';
+        lucide.createIcons();
+        updateStatus('Paused');
+    });
+    muteBtn.addEventListener('click', () => { video.muted = !video.muted; });
+    volumeSlider.addEventListener('input', e => { video.muted = false; video.volume = e.target.value; });
+    video.addEventListener('volumechange', () => {
+        volumeSlider.value = video.muted ? 0 : video.volume;
+        let icon = 'volume-x';
+        if (!video.muted) {
+            if (video.volume > 0.5) icon = 'volume-2';
+            else if (video.volume > 0) icon = 'volume-1';
+        }
+        muteBtn.innerHTML = `<i data-lucide="${icon}" class="w-6 h-6"></i>`;
+        lucide.createIcons();
+    });
+    video.addEventListener('timeupdate', () => {
+        if (isDragging) return;
+        const progress = (video.currentTime / video.duration) * 100;
+        progressBar.style.width = `${progress}%`;
+        progressThumb.style.left = `${progress}%`;
+        currentTimeEl.textContent = formatTime(video.currentTime);
+        if (video.duration) durationEl.textContent = formatTime(video.duration);
+        updateBuffer();
+    });
+
+    // Drag Seek
+    function handleSeek(e) {
+        if (!video.duration) return;
+        const rect = progressContainer.getBoundingClientRect();
+        let pos = (e.clientX - rect.left) / rect.width;
+        pos = Math.max(0, Math.min(1, pos));
+        const seekTime = pos * video.duration;
+        video.currentTime = seekTime;
+        progressBar.style.width = `${pos * 100}%`;
+        progressThumb.style.left = `${pos * 100}%`;
+        currentTimeEl.textContent = formatTime(seekTime);
+    }
+    progressContainer.addEventListener('mousedown', e => { isDragging = true; handleSeek(e); });
+    document.addEventListener('mousemove', e => { if (isDragging) handleSeek(e); });
+    document.addEventListener('mouseup', () => { isDragging = false; });
+
+    // Fullscreen
+    fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) video.parentElement.requestFullscreen();
+        else document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', () => {
+        const icon = document.fullscreenElement ? 'minimize' : 'maximize';
+        fullscreenBtn.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i>`;
+        lucide.createIcons();
+    });
+
+    // Rotation
+    function applyRotation(degrees) {
+        currentRotation = (currentRotation + degrees + 360) % 360;
+        let scale = 1;
+        if (currentRotation === 90 || currentRotation === 270) {
+            const container = video.parentElement;
+            const vW = video.videoWidth || 1080;
+            const vH = video.videoHeight || 1920;
+            if (vW > 0 && vH > 0) {
+                const scaleToFitRotated = Math.min(container.clientWidth / vH, container.clientHeight / vW);
+                const scaleToFit = Math.min(container.clientWidth / vW, container.clientHeight / vH);
+                scale = scaleToFitRotated / scaleToFit;
+            }
+        }
+        video.style.transform = `rotate(${currentRotation}deg) scale(${scale})`;
+    }
+    rotateCWBtn.addEventListener('click', () => applyRotation(90));
+    rotateCCWBtn.addEventListener('click', () => applyRotation(-90));
+
+    // Quality
+    qualityBtn.addEventListener('click', e => { e.stopPropagation(); qualityMenu.classList.toggle('hidden'); });
+    document.addEventListener('click', e => { if (!qualityMenu.contains(e.target) && !qualityBtn.contains(e.target)) qualityMenu.classList.add('hidden'); });
+
+    // Skip
+    function skip(duration) {
+        if (!video.duration) return;
+        video.currentTime += duration;
+        const overlay = duration > 0 ? rightSkipOverlay : leftSkipOverlay;
+        overlay.classList.remove('show-skip-feedback');
+        void overlay.offsetWidth;
+        overlay.classList.add('show-skip-feedback');
+        setTimeout(() => overlay.classList.remove('show-skip-feedback'), 500);
+    }
+    document.addEventListener('keydown', e => {
+        if (document.activeElement.tagName === 'INPUT') return;
+        if(e.key === 'ArrowLeft') { e.preventDefault(); skip(-10); }
+        if(e.key === 'ArrowRight') { e.preventDefault(); skip(10); }
+        if(e.key === ' ') { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+    });
+
+    // Helpers
+    function generateQualityControls(levels) {
+        qualityOptions.innerHTML = '';
+        const sortedLevels = [...levels].sort((a, b) => b.height - a.height);
+        const autoBtn = document.createElement('button');
+        autoBtn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 transition-colors flex items-center justify-between bg-blue-900/50 text-blue-400';
+        autoBtn.innerHTML = 'Auto';
+        autoBtn.onclick = () => {
+            hls.currentLevel = -1;
+            document.querySelectorAll('#quality-options button').forEach(b => b.classList.remove('bg-blue-900/50', 'text-blue-400'));
+            autoBtn.classList.add('bg-blue-900/50', 'text-blue-400');
+            currentQualityLabel.textContent = 'Auto';
+            qualityMenu.classList.add('hidden');
+        };
+        qualityOptions.appendChild(autoBtn);
+        sortedLevels.forEach(level => {
+            const levelIndex = levels.indexOf(level);
+            const btn = document.createElement('button');
+            btn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 transition-colors flex items-center justify-between';
+            btn.innerHTML = `${level.height}p`;
+            btn.onclick = () => {
+                hls.currentLevel = levelIndex;
+                document.querySelectorAll('#quality-options button').forEach(b => b.classList.remove('bg-blue-900/50', 'text-blue-400'));
+                btn.classList.add('bg-blue-900/50', 'text-blue-400');
+                currentQualityLabel.textContent = `${level.height}p`;
+                qualityMenu.classList.add('hidden');
+            };
+            qualityOptions.appendChild(btn);
+        });
+    }
+
+    function updateStatus(msg) {
+        statusBadge.textContent = msg;
+        debugStatus.textContent = msg;
+        statusBadge.className = 'px-3 py-1 rounded-full text-xs font-medium border self-center ' +
+            (msg.includes('Playing') ? 'bg-green-900 text-green-300 border-green-700' :
+            (msg.includes('Error') ? 'bg-red-900 text-red-300 border-red-700' :
+            'bg-gray-800 text-gray-400 border-gray-700'));
+    }
+
+    function showError(msg) {
+        loader.style.display = 'none';
+        errorDisplay.classList.remove('hidden');
+        errorDisplay.classList.add('flex');
+        errorMessage.textContent = msg;
+        updateStatus(`Error: ${msg}`);
+    }
+
+    function formatTime(time) {
+        if (isNaN(time)) return "00:00";
+        const minutes = Math.floor(time / 60);
+        const seconds = Math.floor(time % 60);
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function updateBuffer() {
+        if (!video.duration || !video.buffered || !video.buffered.length) {
+            debugBuffer.textContent = '0.00s';
+            return;
+        }
+        let bufferedEnd = video.currentTime;
+        for (let i = 0; i < video.buffered.length; i++) {
+            if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) >= video.currentTime) {
+                bufferedEnd = video.buffered.end(i);
+                const percentage = (bufferedEnd / video.duration) * 100;
+                bufferedBar.style.width = `${percentage}%`;
+                break;
+            }
+        }
+        debugBuffer.textContent = (bufferedEnd - video.currentTime).toFixed(2) + 's';
+    }
+
+    // Start
+    main();
+</script>
+{% endblock %}

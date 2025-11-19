@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+
+{% block title %}My Channels{% endblock %}
+
+{% block content %}
+<div class="bg-gray-800 p-8 rounded-lg shadow-xl">
+    <h1 class="text-3xl font-extrabold text-blue-400 mb-8 text-center">Subscribed Channels</h1>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-6">
+
+
+        {% for channel in channels %}
+
+            {% if channel.isSubscribed %}
+
+                <a href="{{ url_for('videos_page', channel_id=channel.id) }}" 
+                   class="block bg-gray-700 p-5 pt-6 rounded-xl hover:bg-gray-600 transition-all duration-200 shadow-lg text-center aspect-square flex flex-col justify-between">
+
+                    <div class="w-24 h-24 bg-gray-600 rounded-full mb-4 mx-auto overflow-hidden border-2 border-blue-400 flex-shrink-0">
+                        <img src="{{ channel.profileUrl }}" alt="{{ channel.channelName }} profile"
+                             class="w-full h-full object-cover">
+                    </div>
+
+                    <h2 class="font-bold text-lg text-white px-1 mt-auto" title="{{ channel.channelName }}">
+                        {{ channel.channelName }}
+                    </h2>
+
+                    {% if channel.searchChannelName and "default" in channel.searchChannelName %}
+                        {% if channel.searchChannelName.get('default') %}
+                        <p class="text-sm text-gray-400 truncate px-1">
+                            {{ channel.searchChannelName.get('default') }}
+                        </p>
+                        {% endif %}
+                    {% endif %}
+
+                    <p class="text-xs text-blue-300 mt-2 font-medium uppercase tracking-wider flex-shrink-0">
+                        View Videos
+                    </p>
+                </a>
+
+            {% endif %} 
+        {% endfor %}
+        
+        {% if not channels %}
+        <p class="text-gray-400 col-span-full text-center py-4">
+            You are not subscribed to any channels yet.
+        </p>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

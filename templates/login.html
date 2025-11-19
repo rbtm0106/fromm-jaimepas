@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="bg-gray-800 p-8 rounded-lg shadow-xl">
+    <h1 class="text-2xl font-bold text-center text-blue-400 mb-6">Login</h1>
+    <form action="{{ url_for('login_page') }}" method="POST">
+        <!-- Standard Login Fields -->
+        <div class="mb-4">
+            <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username (email)</label>
+            <input type="text" id="username" name="username" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+        </div>
+        <div class="mb-4">
+            <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+            <input type="password" id="password" name="password" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+        </div>
+
+        <!-- "Advanced Options" Toggle -->
+        <div class="mb-4 text-sm text-right">
+            <button type="button" id="toggle-advanced" class="text-blue-400 hover:text-blue-300 hover:underline focus:outline-none">
+                Show Advanced Options
+            </button>
+        </div>
+
+        <!-- Hidden "Advanced" Fields Container -->
+        <div id="advanced-options" class="hidden space-y-4 mb-4">
+            <!-- Device ID Field -->
+            <div>
+                <label for="deviceId" class="block text-sm font-medium text-gray-300 mb-2">Device ID (Optional)</label>
+                <input type="text" id="deviceId" name="deviceId" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" value="" placeholder="00000000-0000-0000-0000-000000000000">
+            </div>
+
+            <!-- User Agent Field -->
+            <div>
+                <label for="userAgent" class="block text-sm font-medium text-gray-300 mb-2">User Agent</label>
+                <!-- A textarea is used for the long default value -->
+                <textarea id="userAgent" name="userAgent" rows="4" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/28.0 Chrome/137.0.0.0 Mobile Safari/537.36</textarea>
+            </div>
+        </div>
+        <!-- End of Advanced Fields -->
+
+        <!-- TODO manage refresh token? Please don't manipulate duppicate login otehrwise fromm will update their api-->
+        <!--
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center">
+                <input id="remember_me" name="remember_me" type="checkbox" class="h-4 w-4 bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-500">
+                <label for="remember_me" class="ml-2 block text-sm text-gray-300">Remember me</label>
+            </div>
+        </div>
+        -->
+
+
+        <!-- Show login error if it exists -->
+        {% if error %}
+            <p class="text-red-400 text-sm text-center mb-4">{{ error }}</p>
+        {% endif %}
+
+        <div>
+            <button type="submit" class="w-full text-center px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium text-white transition-colors">
+                Login
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- JavaScript to toggle the advanced section -->
+<script>
+    // Wait for the document to be fully loaded
+    document.addEventListener('DOMContentLoaded', (event) => {
+        // Get the toggle button
+        const toggleButton = document.getElementById('toggle-advanced');
+        // Get the section to hide/show
+        const advancedSection = document.getElementById('advanced-options');
+
+        if (toggleButton && advancedSection) {
+            // Add a click event listener
+            toggleButton.addEventListener('click', function() {
+                // Toggle the 'hidden' class (Tailwind's display: none)
+                advancedSection.classList.toggle('hidden');
+
+                // Change the button text based on visibility
+                if (advancedSection.classList.contains('hidden')) {
+                    this.textContent = 'Show Advanced Options';
+                } else {
+                    this.textContent = 'Hide Advanced Options';
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

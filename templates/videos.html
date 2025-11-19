@@ -1,0 +1,118 @@
+{% extends "layout.html" %}
+
+{% block title %}Channel Videos{% endblock %}
+
+{% block content %}
+<div class="bg-gray-800 p-8 rounded-lg shadow-xl">
+    <h1 class="text-2xl font-bold text-blue-400 mb-6">Channel Videos</h1>
+
+    <div id="video-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        {% for video_id, video_data in videos %}
+        <a href="{{ url_for('player_page', channel_id=channel_id, post_id=video_id) }}" class="block bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors shadow overflow-hidden">
+            <img src="{{ video_data.thumbnail.url }}"
+                 alt="Thumbnail for {{ video_data.title }}"
+                 class="w-full h-40 object-cover">
+            <div class="p-4">
+                <h2 class="font-semibold text-lg truncate" title="{{ video_data.title }}">{{ video_data.title }}</h2>
+                <p class="text-sm text-gray-400">
+                    {{ video_data.displayStartAt | kst_format }}
+                </p>
+            </div>
+        </a>
+        {% else %}
+        <p class="text-gray-400 col-span-full">No videos found.</p>
+        {% endfor %}
+
+    </div>
+
+    <div class="mt-8 flex justify-center">
+        <button id="load-more-btn"
+                class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed hidden">
+            Load More
+        </button>
+        <p id="no-more-text" class="text-gray-500 italic hidden mt-4">No more videos to load.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        const noMoreText = document.getElementById('no-more-text');
+        const videoGrid = document.getElementById('video-grid');
+
+        // Initial State from Flask
+        let isLast = {{ is_last | tojson }};
+        let lastPost = {{ last_post | tojson }};
+        const channelId = {{ channel_id | tojson }};
+
+        function updateUI() {
+            if (isLast) {
+                loadMoreBtn.classList.add('hidden');
+                noMoreText.classList.remove('hidden');
+            } else {
+                loadMoreBtn.classList.remove('hidden');
+                noMoreText.classList.add('hidden');
+            }
+        }
+
+        // Run once on load
+        updateUI();
+
+        loadMoreBtn.addEventListener('click', function() {
+            // Disable button while loading
+            loadMoreBtn.disabled = true;
+            loadMoreBtn.textContent = "Loading...";
+
+            // -------------------------------------------------------
+            // UPDATED: Use fetchWithTabId (from layout.html)
+            // This ensures this API call also respects your Tab Isolation logic
+            // -------------------------------------------------------
+
+            // If fetchWithTabId isn't found (e.g. layout not reloaded), fallback to standard fetch
+            const doFetch = window.fetchWithTabId || fetch;
+
+            doFetch('/api/load-more-videos', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Note: fetchWithTabId will automatically inject 'X-Tab-ID' here
+                },
+                body: JSON.stringify({
+                    channel_id: channelId,
+                    last_post: lastPost
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    alert('Failed to load videos.');
+                    return;
+                }
+
+                // 1. Append new HTML to grid
+                videoGrid.insertAdjacentHTML('beforeend', data.html);
+
+                // 2. Update state
+                isLast = data.isLast;
+                lastPost = data.lastPost;
+
+                // 3. Update UI visibility
+                updateUI();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred.');
+            })
+            .finally(() => {
+                // Re-enable button
+                loadMoreBtn.disabled = false;
+                loadMoreBtn.textContent = "Load More";
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My App{% endblock %}</title>
+
+    <link rel="icon" href="{{ url_for('favicon') }}" type="image/x-icon">
+    <script>
+        if (!sessionStorage.getItem('my_app_tab_id')) {
+            sessionStorage.setItem('my_app_tab_id', crypto.randomUUID());
+        }
+        const TAB_ID = sessionStorage.getItem('my_app_tab_id');
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    {% block styles %}{% endblock %}
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-4 font-sans">
+
+    <nav class="w-full max-w-4xl mb-4 p-4 bg-gray-800 rounded-lg flex justify-between items-center">
+        <div class="flex gap-4">
+            {% if 'accessToken' in request.cookies %}
+
+                {% set channels_class = "text-blue-400 hover:text-blue-300" %}
+                {% if active_page == 'channels' %}
+                    {% set channels_class = "text-white font-semibold border-b-2 border-blue-400" %}
+                {% endif %}
+                <a href="{{ url_for('channels_page') }}" class="{{ channels_class }}">Channels</a>
+
+                {% if session.last_channel_id %}
+                    {% set videos_class = "text-blue-400 hover:text-blue-300" %}
+                    {% if active_page == 'videos' %}
+                        {% set videos_class = "text-white font-semibold border-b-2 border-green-400" %}
+                    {% endif %}
+                    <a href="{{ url_for('videos_page', channel_id=session.last_channel_id) }}" class="{{ videos_class }}">Videos</a>
+                {% endif %}
+
+            {% endif %}
+        </div>
+
+        <div class="flex gap-4 items-center">
+            {% if 'accessToken' in request.cookies %}
+                <a href="{{ url_for('logout_page') }}" class="text-gray-400 hover:text-white">Logout</a>
+            {% else %}
+                <a href="{{ url_for('login_page') }}" class="text-blue-400 hover:text-blue-300">Login</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main class="w-full max-w-4xl">
+        {% block content %}
+        <p>Welcome to the app!</p>
+        {% endblock %}
+    </main>
+
+    <script>
+        // Initialize icons on every page load
+        lucide.createIcons();
+    </script>
+
+    <script>
+        // Helper function to add the Tab ID to all your API calls automatically
+        async function fetchWithTabId(url, options = {}) {
+            const headers = options.headers || {};
+            headers['X-Tab-ID'] = TAB_ID; // Inject Header
+
+            return fetch(url, {
+                ...options,
+                headers: headers
+            });
+        }
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
