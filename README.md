@@ -4,6 +4,9 @@ simple fromm VOD proxy server
 
 You can access only what you paid for
 
+Once you log in, your session stays valid for 14 days. You will be logged out on your phone, but you can log back in there and continue watching the VODs without signing in again on your browser.
+
+
 ## Requirements
 
 You need Python and the following dependencies:
