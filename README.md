@@ -6,9 +6,9 @@ simple fromm VOD proxy server
 
 You need Python and the following dependencies:
 
-* Flask
-* Requests
+* flask
 * PyCryptodome
+* requests
 
 ## Installation
 
