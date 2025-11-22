@@ -1,5 +1,6 @@
 import uuid
 import logging
+from datetime import datetime, timezone
 
 from util.signin import encrypt_password_for_signin
 from util.utils import is_uuid
@@ -31,6 +32,8 @@ class FrommAPI:
         self.access_token = None
         self.refresh_token = None
         self.resource_token = None
+        self.token_expiry = None
+
         self.profile = None  # To store user profile data
         self.user_agent_string = None
         self.device_info = None
@@ -76,6 +79,16 @@ class FrommAPI:
                 self.user_agent_string = user_agent_string
                 self.device_info = device_info
 
+                expires_in_seconds = response.get('data', {}).get('expiresIn', 0)
+
+                # 2. Calculate absolute timestamp (Now + Seconds)
+                if expires_in_seconds:
+                    current_time = datetime.now(timezone.utc).timestamp()
+                    self.token_expiry = current_time + expires_in_seconds
+                else:
+                    self.token_expiry = None
+
+
                 # Propagate the new token to the other API clients
                 #TODO wrap everything in a single class
                 self.channel.set_token(self.access_token)
@@ -109,6 +122,7 @@ class FrommAPI:
         self.access_token = None
         self.refresh_token = None
         self.resource_token = None
+        self.token_expiry = None
         self.profile = None
         self.device_id = None
         self.user_agent_string = None
@@ -132,6 +146,7 @@ class FrommAPI:
             "access_token": self.access_token,
             "refresh_token": self.refresh_token,
             "resource_token": self.resource_token,
+            "token_expiry": self.token_expiry,
             "profile": self.profile,
             "user_agent_string": self.user_agent_string,
             "device_info": self.device_info
@@ -160,6 +175,7 @@ class FrommAPI:
         api.access_token = data.get("access_token")
         api.refresh_token = data.get("refresh_token")
         api.resource_token = data.get("resource_token")
+        api.token_expiry = data.get("token_expiry")
         api.user_agent_string = data.get("user_agent_string")
         api.device_info = data.get("device_info")
 
@@ -173,3 +189,15 @@ class FrommAPI:
             api.user.set_device_info(api.device_info)
 
         return api
+
+    def is_token_expired(self):
+        """Returns True if the token exists but the expiration time has passed."""
+        if not self.access_token:
+            return False  # No token to expire
+
+        if not self.token_expiry:
+            return True  # No expiry set, assume invalid
+
+        current_time = datetime.now(timezone.utc).timestamp()
+        # Check if current time is PAST the stored expiry time
+        return current_time > self.token_expiry

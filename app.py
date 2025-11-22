@@ -35,6 +35,13 @@ if not log.handlers:
 def load_api_from_session():
     data = session.get('fromm_api_data')
     g.api = FrommAPI.from_session_data(data)
+    # check expired tokens
+    if g.api.access_token and g.api.is_token_expired():
+        log.info("Session expired. Logging out user.")
+        g.api.signout()
+        session.pop('fromm_api_data', None)
+        if request.endpoint and 'static' not in request.endpoint and 'login' not in request.endpoint:
+            flash("Your session has expired. Please login again.", "warning")
 
 
 def save_api_to_session():
