@@ -17,6 +17,8 @@ You need Python and the following dependencies:
 
 ## Installation
 
+Download and unzip or git clone the repository
+
 ```bash
 git clone https://github.com/rbtm0106/fromm-jaimepas.git
 cd fromm-jaimepas
@@ -36,9 +38,6 @@ python app.py
 * Windows 11
 * Python 3.13
 * firefox 145.0.1
-
-Demo click the picture:
-[![video](https://img.youtube.com/vi/MBZhY7ParcU/maxresdefault.jpg)](https://www.youtube.com/watch?v=MBZhY7ParcU)
 
 ---
 
