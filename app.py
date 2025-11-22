@@ -287,7 +287,9 @@ def get_post_info(channel_id, post_id):
         # We combine Tab ID + Post ID so one tab can even handle multiple posts if needed
         storage_key = f"{tab_id}_{post_id}"
         VIDEO_CREDS_STORE[storage_key] = video_data['creds']
-
+        if 'master_url' in video_data['post_data']:
+            video_data['post_data']['url'] = video_data['post_data']['master_url']
+            log.info("Master playlist used to stream")
         return jsonify(video_data['post_data'])
 
     except ApiError as e:

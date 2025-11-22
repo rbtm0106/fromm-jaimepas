@@ -32,8 +32,19 @@ def extract_video_credentials(post_infos):
             "policy": match.group(3)
         }
         logging.info("✅ Successfully extracted video stream credentials.")
-        # Return both the credentials and the full post data
-        return {"creds": creds, "post_data": post_infos}
+
+        logging.info("Extracting m3u8 master url.")
+        match = re.search(r"\S+\.m3u8", url)
+        post_infos['url'] = url
+
+        if match:
+            base_split = match.group().split("_")
+            master_url = f"{"_".join(base_split[:-1])}.{base_split[-1].split(".")[-1]}"
+            post_infos['master_url']=master_url
+            logging.info(f"extracted master playlist url {master_url}")
+
+            # Return both the credentials and the full post data
+            return {"creds": creds, "post_data": post_infos}
     else:
         logging.error("❌ Regex did not find video credentials in the URL.")
         return None

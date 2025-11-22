@@ -155,7 +155,7 @@
     const POST_ID = '{{ post_id }}';
     const CHANNEL_ID = '{{ channel_id }}';
 
-    // --- Main Initialization (FIXED) ---
+    // --- Main Initialization ---
     async function main() {
         lucide.createIcons();
 
@@ -163,8 +163,6 @@
             updateStatus('Fetching video info...');
             loaderMessage.textContent = 'Fetching video info...';
 
-            // --- FIX 1: Use fetchWithTabId (from layout.html) ---
-            // This adds the 'X-Tab-ID' header so the backend knows which tab is asking
             const postResponse = await fetchWithTabId(`/api/post/${CHANNEL_ID}/${POST_ID}`);
 
             if (!postResponse.ok) {
@@ -173,17 +171,15 @@
             }
 
             const postData = await postResponse.json();
-            const streamUrl = postData?.data?.post?.url;
+            const streamUrl = postData?.url;
 
             if (!streamUrl) {
                 throw new Error("Stream URL not found in API response.");
             }
 
-            // --- FIX 2: Append Tab ID to URL ---
             const urlObject = new URL(streamUrl);
-            const tabId = sessionStorage.getItem('my_app_tab_id'); // Get ID manually
+            const tabId = sessionStorage.getItem('my_app_tab_id');
 
-            // Add '?tid=...' to the proxied URL
             const proxiedUrl = `/stream/p${POST_ID}${urlObject.pathname}?tid=${tabId}`;
 
             updateStatus('Initializing player...');
@@ -209,9 +205,6 @@
                 levelLoadingMaxRetry: 5
             });
 
-            // Send X-Tab-ID header even for HLS fragments (Optional, but good practice)
-            // Note: This only works for XHR requests HLS makes, not the initial file sometimes.
-            // The ?tid=... in the URL handles the main auth.
             const tabId = sessionStorage.getItem('my_app_tab_id');
             if(tabId) {
                 hls.config.xhrSetup = function(xhr, url) {
@@ -228,7 +221,6 @@
                 debugCodecs.textContent = data.levels[0]?.attrs?.CODECS || 'Unknown';
                 generateQualityControls(data.levels);
                 video.addEventListener('progress', updateBuffer);
-                // Auto-play attempt
                 video.play().catch(() => {
                     updateStatus('Click to Play');
                 });
@@ -367,7 +359,14 @@
     // Helpers
     function generateQualityControls(levels) {
         qualityOptions.innerHTML = '';
-        const sortedLevels = [...levels].sort((a, b) => b.height - a.height);
+
+        // Sort by the smallest dimension (usually what defines "1080p" etc, even for vertical video)
+        const sortedLevels = [...levels].sort((a, b) => {
+            const resA = Math.min(a.width, a.height);
+            const resB = Math.min(b.width, b.height);
+            return resB - resA;
+        });
+
         const autoBtn = document.createElement('button');
         autoBtn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 transition-colors flex items-center justify-between bg-blue-900/50 text-blue-400';
         autoBtn.innerHTML = 'Auto';
@@ -379,16 +378,26 @@
             qualityMenu.classList.add('hidden');
         };
         qualityOptions.appendChild(autoBtn);
+
         sortedLevels.forEach(level => {
             const levelIndex = levels.indexOf(level);
+            // Calculate min dimension
+            const resolution = Math.min(level.width, level.height);
+
             const btn = document.createElement('button');
             btn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 transition-colors flex items-center justify-between';
-            btn.innerHTML = `${level.height}p`;
+
+            // Use calculation for Label
+            btn.innerHTML = `${resolution}p`;
+
             btn.onclick = () => {
                 hls.currentLevel = levelIndex;
                 document.querySelectorAll('#quality-options button').forEach(b => b.classList.remove('bg-blue-900/50', 'text-blue-400'));
                 btn.classList.add('bg-blue-900/50', 'text-blue-400');
-                currentQualityLabel.textContent = `${level.height}p`;
+
+                // Use calculation for Display Label
+                currentQualityLabel.textContent = `${resolution}p`;
+
                 qualityMenu.classList.add('hidden');
             };
             qualityOptions.appendChild(btn);
